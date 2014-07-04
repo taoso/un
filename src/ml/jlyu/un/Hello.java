@@ -35,6 +35,7 @@ public class Hello extends Activity {
         .setContentTitle("Notification Title")
         .setSmallIcon(R.drawable.ic_launcher)
         .setSound(soundUri)
+        .setLights(0xff0000, 1000, 1000)
         .setStyle(new NotificationCompat.BigTextStyle().bigText(notice));
     	
         nm.notify(this.noticeId++, mBuilder.build());
