@@ -6,6 +6,7 @@ import android.os.Bundle;
 import android.app.Activity;
 import android.app.NotificationManager;
 import android.content.Context;
+import android.content.Intent;
 import android.support.v4.app.NotificationCompat;
 import android.view.Menu;
 import android.view.View;
@@ -17,6 +18,7 @@ public class Hello extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_hello);
+        this.startService(new Intent(this, UNotice.class));
     }
 
 
@@ -36,6 +38,7 @@ public class Hello extends Activity {
         .setSmallIcon(R.drawable.ic_launcher)
         .setSound(soundUri)
         .setLights(0xff0000, 1000, 1000)
+        .setAutoCancel(false)
         .setStyle(new NotificationCompat.BigTextStyle().bigText(notice));
     	
         nm.notify(this.noticeId++, mBuilder.build());
