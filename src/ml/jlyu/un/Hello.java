@@ -18,7 +18,7 @@ public class Hello extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_hello);
-        this.startService(new Intent(this, UNotice.class));
+        this.startService(new Intent(this, UNoticeService.class));
     }
 
 
