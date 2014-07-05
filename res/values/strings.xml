@@ -6,9 +6,9 @@
     <string name="hello_world">Hello world!</string>
     <string name="send_notice">发送通知</string>
     <string name="server_uri">服务器</string>
-    <string name="server_uri_summary">MQTT服务器地址（URI）</string>
+    <string name="server_uri_summary">MQTT服务器地址（tcp://hostname[:port]）</string>
     <string name="topic">订阅主题</string>
-    <string name="topic_summary">你要订阅的主题（支持通配符）</string>
+    <string name="topic_summary">需要订阅的主题（多个主题使用空格隔开）</string>
     <string name="title_activity_settings">幽信配置面板</string>
     
     <string name="default_server_uri">tcp://m2m.eclipse.org:1883</string>

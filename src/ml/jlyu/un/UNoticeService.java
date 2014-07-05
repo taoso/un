@@ -109,8 +109,9 @@ public class UNoticeService extends Service implements MqttCallback {
 				@Override
 				public void onSuccess(IMqttToken token) {
 					try {
-						mClient.subscribe(topic, 2);
-						scheduleNextPing();
+						for (String topic: topics) {
+							mClient.subscribe(topic, 2);
+						}
 					} catch (MqttException e) {
 						notice("ERROR", "subscript failed");
 						logExt(e);
@@ -129,14 +130,14 @@ public class UNoticeService extends Service implements MqttCallback {
 		Log.e("HEHE", sw.toString());
 	}
 	
-	private String topic;
+	private String[] topics;
 	private String serverUri;
 	private String clientId;
 
 	private void defineClient() {
 		SharedPreferences sp = PreferenceManager.getDefaultSharedPreferences(this);
 		serverUri = sp.getString("server_uri", "tcp://m2m.eclipse.org:1883");
-		topic = sp.getString("topic", "/un/demo");
+		topics = sp.getString("topic", "/un/demo").split(" ");
 		clientId = UUID.randomUUID().toString();
 
 		try {
