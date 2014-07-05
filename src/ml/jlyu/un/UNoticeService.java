@@ -3,6 +3,7 @@ package ml.jlyu.un;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.Calendar;
+import java.util.UUID;
 
 import org.eclipse.paho.client.mqttv3.IMqttActionListener;
 import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken;
@@ -23,12 +24,14 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.SharedPreferences;
 import android.media.RingtoneManager;
 import android.net.ConnectivityManager;
 import android.net.Uri;
 import android.os.IBinder;
 import android.os.PowerManager;
 import android.os.PowerManager.WakeLock;
+import android.preference.PreferenceManager;
 import android.support.v4.app.NotificationCompat;
 import android.util.Log;
 
@@ -57,19 +60,18 @@ public class UNoticeService extends Service implements MqttCallback {
 	public void onCreate() {
 		super.onCreate();
 
-		if (pingSender == null) {
-			pingSender = new PingSender();
-		}
-
-		if (this.networkConnectionMonitor == null) {
-			this.networkConnectionMonitor = new NetworkConnectionMonitor();
-		}
+		pingSender = new PingSender();
+		this.networkConnectionMonitor = new NetworkConnectionMonitor();
+		this.settingsMonitor = new SettingsMonitor();
 
 		registerReceiver(this.networkConnectionMonitor, new IntentFilter(
 				ConnectivityManager.CONNECTIVITY_ACTION));
 
 		registerReceiver(pingSender, new IntentFilter(
 				UNoticeService.MQTT_PING_ACTION));
+		
+		registerReceiver(this.settingsMonitor, new IntentFilter(
+				UNoticeService.SETTINGS_CHANTE_ACTION));
 
 		defineClient();
 	}
@@ -83,7 +85,7 @@ public class UNoticeService extends Service implements MqttCallback {
 		if (!isOnline()) {
 			return;
 		}
-
+		
 		connectToBroker();
 	}
 
@@ -96,7 +98,7 @@ public class UNoticeService extends Service implements MqttCallback {
 		mco.setKeepAliveInterval(keepAliveInterval);
 
 		try {
-			mClient.connect(mco, "", new IMqttActionListener() {
+			mClient.connect(mco, null, new IMqttActionListener() {
 
 				@Override
 				public void onFailure(IMqttToken token, Throwable e) {
@@ -107,7 +109,7 @@ public class UNoticeService extends Service implements MqttCallback {
 				@Override
 				public void onSuccess(IMqttToken token) {
 					try {
-						mClient.subscribe("ml/jlyu", 2);
+						mClient.subscribe(topic, 2);
 						scheduleNextPing();
 					} catch (MqttException e) {
 						notice("ERROR", "subscript failed");
@@ -126,10 +128,16 @@ public class UNoticeService extends Service implements MqttCallback {
 		e.printStackTrace(pw);
 		Log.e("HEHE", sw.toString());
 	}
+	
+	private String topic;
+	private String serverUri;
+	private String clientId;
 
 	private void defineClient() {
-		String serverUri = "tcp://m2m.eclipse.org";
-		String clientId = "ml.jlyu.mqtt";
+		SharedPreferences sp = PreferenceManager.getDefaultSharedPreferences(this);
+		serverUri = sp.getString("server_uri", "tcp://m2m.eclipse.org:1883");
+		topic = sp.getString("topic", "/un/demo");
+		clientId = UUID.randomUUID().toString();
 
 		try {
 			mClient = new MqttAsyncClient(serverUri, clientId, null, pingSender);
@@ -200,6 +208,7 @@ public class UNoticeService extends Service implements MqttCallback {
 	}
 
 	public static final String MQTT_PING_ACTION = "ml.jlyu.mqtt.action.ping";
+	public static final String SETTINGS_CHANTE_ACTION = "ml.jlyu.settings.action.change";
 
 	private void scheduleNextPing() {
 		PendingIntent pendingIntent = PendingIntent.getBroadcast(this, 0,
@@ -279,5 +288,33 @@ public class UNoticeService extends Service implements MqttCallback {
 				wl.release();
 			}
 		}
+	}
+
+	private SettingsMonitor settingsMonitor;
+
+	private class SettingsMonitor extends BroadcastReceiver {
+
+		@Override
+		public void onReceive(Context context, Intent intent) {
+			try {
+				mClient.disconnect(null, new IMqttActionListener() {
+
+					@Override
+					public void onFailure(IMqttToken token, Throwable e) {
+						logExt(e);
+					}
+
+					@Override
+					public void onSuccess(IMqttToken token) {
+						defineClient();
+						handleStart();
+					}
+					
+				});
+			} catch (MqttException e) {
+				logExt(e);
+			}
+		}
+
 	}
 }
