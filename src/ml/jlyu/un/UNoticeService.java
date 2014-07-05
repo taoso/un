@@ -12,6 +12,9 @@ import org.eclipse.paho.client.mqttv3.MqttCallback;
 import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
 import org.eclipse.paho.client.mqttv3.MqttException;
 import org.eclipse.paho.client.mqttv3.MqttMessage;
+import org.eclipse.paho.client.mqttv3.MqttPingSender;
+import org.eclipse.paho.client.mqttv3.internal.ClientComms;
+
 import android.app.AlarmManager;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
@@ -72,7 +75,7 @@ public class UNoticeService extends Service implements MqttCallback {
 	}
 
 	public void handleStart() {
-		
+
 		if (isConnected()) {
 			return;
 		}
@@ -83,8 +86,8 @@ public class UNoticeService extends Service implements MqttCallback {
 
 		connectToBroker();
 	}
-	
-	private int keepAliveInterval = 600;
+
+	private int keepAliveInterval = 1200;
 
 	private void connectToBroker() {
 
@@ -105,6 +108,7 @@ public class UNoticeService extends Service implements MqttCallback {
 				public void onSuccess(IMqttToken token) {
 					try {
 						mClient.subscribe("ml/jlyu", 2);
+						scheduleNextPing();
 					} catch (MqttException e) {
 						notice("ERROR", "subscript failed");
 						logExt(e);
@@ -128,7 +132,7 @@ public class UNoticeService extends Service implements MqttCallback {
 		String clientId = "ml.jlyu.mqtt";
 
 		try {
-			mClient = new MqttAsyncClient(serverUri, clientId, null);
+			mClient = new MqttAsyncClient(serverUri, clientId, null, pingSender);
 			mClient.setCallback(this);
 		} catch (MqttException e) {
 			logExt(e);
@@ -209,28 +213,50 @@ public class UNoticeService extends Service implements MqttCallback {
 				pendingIntent);
 	}
 
-	private class PingSender extends BroadcastReceiver {
-		private class PingListener implements IMqttActionListener {
+	private class PingSender extends BroadcastReceiver implements
+			MqttPingSender {
 
-			@Override
-			public void onFailure(IMqttToken token, Throwable e) {
-				scheduleNextPing();
-			}
+		@Override
+		public void onReceive(Context context, Intent intent) {
+			try {
+				mClient.checkPing(this, new IMqttActionListener() {
+					@Override
+					public void onFailure(IMqttToken token, Throwable e) {
+						scheduleNextPing();
+					}
 
-			@Override
-			public void onSuccess(IMqttToken token) {
-				scheduleNextPing();
+					@Override
+					public void onSuccess(IMqttToken token) {
+						scheduleNextPing();
+					}
+				});
+			} catch (MqttException e) {
+				notice("Error", "check ping failed");
 			}
 		}
 
 		@Override
-		public void onReceive(Context context, Intent intent) {
-			notice("PingSender", "Ping");
-			try {
-				mClient.checkPing(this, new PingListener());
-			} catch (MqttException e) {
-				notice("Error", "check ping failed");
+		public void init(ClientComms clientComms) {
+			// TODO Auto-generated method stub
+		}
+
+		@Override
+		public void schedule(long delayInMilliseconds) {
+			if (isStarted) {
+				scheduleNextPing();
 			}
+		}
+
+		private boolean isStarted = false;
+
+		@Override
+		public void start() {
+			isStarted = true;
+		}
+
+		@Override
+		public void stop() {
+			isStarted = false;
 		}
 
 	}
