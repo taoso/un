@@ -72,23 +72,25 @@ public class UNoticeService extends Service implements MqttCallback {
 	}
 
 	public void handleStart() {
+		
 		if (isConnected()) {
-			notice("Notice", "You are connected!");
 			return;
 		}
 
 		if (!isOnline()) {
-			notice("Notice", "Your are offline!");
 			return;
 		}
 
 		connectToBroker();
 	}
+	
+	private int keepAliveInterval = 600;
 
 	private void connectToBroker() {
-		
+
 		MqttConnectOptions mco = new MqttConnectOptions();
 		mco.setCleanSession(true);
+		mco.setKeepAliveInterval(keepAliveInterval);
 
 		try {
 			mClient.connect(mco, "", new IMqttActionListener() {
@@ -171,8 +173,7 @@ public class UNoticeService extends Service implements MqttCallback {
 	public void connectionLost(Throwable e) {
 		logExt(e);
 		PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
-		WakeLock wl = pm
-				.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "MQTT");
+		WakeLock wl = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "MQTT");
 		wl.acquire();
 		try {
 			if (isOnline()) {
@@ -201,7 +202,7 @@ public class UNoticeService extends Service implements MqttCallback {
 				new Intent(UNoticeService.MQTT_PING_ACTION),
 				PendingIntent.FLAG_UPDATE_CURRENT);
 		Calendar wakeUpTime = Calendar.getInstance();
-		wakeUpTime.add(Calendar.SECOND, 300);
+		wakeUpTime.add(Calendar.SECOND, this.keepAliveInterval - 10);
 
 		AlarmManager am = (AlarmManager) getSystemService(ALARM_SERVICE);
 		am.set(AlarmManager.RTC_WAKEUP, wakeUpTime.getTimeInMillis(),
@@ -209,7 +210,6 @@ public class UNoticeService extends Service implements MqttCallback {
 	}
 
 	private class PingSender extends BroadcastReceiver {
-
 		private class PingListener implements IMqttActionListener {
 
 			@Override
