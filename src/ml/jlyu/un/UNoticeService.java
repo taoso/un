@@ -173,13 +173,13 @@ public class UNoticeService extends Service implements MqttCallback {
 		NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
 		Uri soundUri = RingtoneManager
 				.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
-		NotificationCompat.Builder mBuilder = new NotificationCompat.Builder(
+		NotificationCompat.Builder builder = new NotificationCompat.Builder(
 				this).setContentTitle(title)
 				.setSmallIcon(R.drawable.ic_launcher).setSound(soundUri)
 				.setLights(0xff0000, 1000, 1000).setAutoCancel(false)
 				.setContentText(content);
 
-		nm.notify(this.noticeId++, mBuilder.build());
+		nm.notify(this.noticeId++, builder.build());
 	}
 
 	@Override
