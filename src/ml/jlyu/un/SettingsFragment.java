@@ -18,7 +18,7 @@ public class SettingsFragment extends PreferenceFragment implements
 		if (sharedPreferences.getString("server_uri", null) != null
 				&& sharedPreferences.getString("topic", null) != null) {
 			this.getActivity().sendBroadcast(
-					new Intent(UNoticeService.SETTINGS_CHANTE_ACTION));
+					new Intent(UNoticeService.ACTION_RESTART));
 		}
 	}
 
