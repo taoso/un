@@ -2,6 +2,11 @@
 <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android" >
 
     <EditTextPreference
+        android:inputType="textUri"
+        android:key="client_id"
+        android:summary="@string/client_id_summary"
+        android:title="@string/client_id" />
+    <EditTextPreference
         android:defaultValue="@string/default_server_uri"
         android:inputType="textUri"
         android:key="server_uri"

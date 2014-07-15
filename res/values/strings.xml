@@ -3,8 +3,8 @@
 
     <string name="app_name">UN</string>
     <string name="action_settings">Settings</string>
-    <string name="hello_world">Hello world!</string>
-    <string name="send_notice">发送通知</string>
+    <string name="client_id">客户端标识</string>
+    <string name="client_id_summary">唯一的MQTT标识，自动生成，无需改动</string>
     <string name="server_uri">服务器</string>
     <string name="server_uri_summary">MQTT服务器地址（tcp://hostname[:port]）</string>
     <string name="topic">订阅主题</string>
