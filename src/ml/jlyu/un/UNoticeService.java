@@ -186,7 +186,11 @@ public class UNoticeService extends Service implements MqttCallback {
 
 		String serverUri = preferences.getString("server_uri",
 				"tcp://m2m.eclipse.org:1883");
-		String clientId = UUID.randomUUID().toString();
+		String clientId = preferences.getString("client_id", null);
+		if (clientId == null) {
+			clientId = UUID.randomUUID().toString();
+			preferences.edit().putString("client_id", clientId).commit();
+		}
 
 		try {
 			mClient = new MqttAsyncClient(serverUri, clientId, null);
