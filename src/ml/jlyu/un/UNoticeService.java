@@ -13,8 +13,6 @@ import org.eclipse.paho.client.mqttv3.MqttCallback;
 import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
 import org.eclipse.paho.client.mqttv3.MqttException;
 import org.eclipse.paho.client.mqttv3.MqttMessage;
-import org.eclipse.paho.client.mqttv3.MqttPingSender;
-import org.eclipse.paho.client.mqttv3.internal.ClientComms;
 
 import android.app.AlarmManager;
 import android.app.NotificationManager;
@@ -51,9 +49,9 @@ public class UNoticeService extends Service implements MqttCallback {
 	 */
 	public final static String ACTION_RESUBSCRIBE = "ml.jlyu.un.action.resubscribe";
 	/**
-	 * TODO 清理此动作
+	 * MQTT心跳
 	 */
-	public static final String MQTT_PING_ACTION = "ml.jlyu.mqtt.action.ping";
+	public static final String ACTION_PING = "ml.jlyu.un.action.ping";
 
 	private final String NOTICE_ERROR = "Error";
 	private final String NOTICE_INFO = "Info";
@@ -72,7 +70,10 @@ public class UNoticeService extends Service implements MqttCallback {
 
 	private BrokerStatusHandler brokerStatusHandler;
 
-	private int keepAliveInterval = 3;
+	/**
+	 * 心跳包发送间隔，最少60秒
+	 */
+	private int keepAliveInterval = 600;
 
 	private MqttAsyncClient mClient;
 	private PingSender pingSender;
@@ -101,11 +102,12 @@ public class UNoticeService extends Service implements MqttCallback {
 		preferences = PreferenceManager.getDefaultSharedPreferences(this);
 
 		pingSender = new PingSender();
-		this.networkConnectionMonitor = new NetworkConnectionMonitor();
+		networkConnectionMonitor = new NetworkConnectionMonitor();
 
-		// TODO clean this receiver
-		registerReceiver(this.networkConnectionMonitor, new IntentFilter(
+		registerReceiver(networkConnectionMonitor, new IntentFilter(
 				ConnectivityManager.CONNECTIVITY_ACTION));
+		registerReceiver(pingSender, new IntentFilter(
+				UNoticeService.ACTION_PING));
 
 		registerReceiver(brokerStatusHandler, new IntentFilter(
 				UNoticeService.ACTION_RESTART));
@@ -131,10 +133,9 @@ public class UNoticeService extends Service implements MqttCallback {
 	}
 
 	private void connectToBroker() {
-
 		MqttConnectOptions mco = new MqttConnectOptions();
 
-		mco.setCleanSession(true);
+		mco.setCleanSession(false);
 		mco.setKeepAliveInterval(keepAliveInterval);
 
 		try {
@@ -165,6 +166,7 @@ public class UNoticeService extends Service implements MqttCallback {
 			for (String topic : topics) {
 				mClient.subscribe(topic, 1);
 			}
+			scheduleNextPing();
 		} catch (MqttException e) {
 			// TODO 可能存在客户端未连接的情况，查明原因
 			UNoticeService.this.noticeAction(UNoticeService.ACTION_RESUBSCRIBE,
@@ -187,7 +189,7 @@ public class UNoticeService extends Service implements MqttCallback {
 		String clientId = UUID.randomUUID().toString();
 
 		try {
-			mClient = new MqttAsyncClient(serverUri, clientId, null, pingSender);
+			mClient = new MqttAsyncClient(serverUri, clientId, null);
 			mClient.setCallback(this);
 			return true;
 		} catch (MqttException e) {
@@ -284,73 +286,45 @@ public class UNoticeService extends Service implements MqttCallback {
 	public void messageArrived(String topic, MqttMessage message)
 			throws Exception {
 		noticeMessage(topic, new String(message.getPayload()));
+		scheduleNextPing();
 	}
 
 	private void scheduleNextPing() {
 		PendingIntent pendingIntent = PendingIntent.getBroadcast(this, 0,
-				new Intent(UNoticeService.MQTT_PING_ACTION),
+				new Intent(UNoticeService.ACTION_PING),
 				PendingIntent.FLAG_UPDATE_CURRENT);
 		Calendar wakeUpTime = Calendar.getInstance();
-		wakeUpTime.add(Calendar.SECOND, this.keepAliveInterval - 10);
-		notice("DEBUG", String.format("%d", wakeUpTime.getTime()));
+		wakeUpTime.add(Calendar.SECOND, keepAliveInterval - 10);
 
 		AlarmManager am = (AlarmManager) getSystemService(ALARM_SERVICE);
 		am.set(AlarmManager.RTC_WAKEUP, wakeUpTime.getTimeInMillis(),
 				pendingIntent);
 	}
 
-	private class PingSender extends BroadcastReceiver implements
-			MqttPingSender {
+	private class PingSender extends BroadcastReceiver {
 
 		@Override
 		public void onReceive(Context context, Intent intent) {
+			if (isOnline() && !isConnected()) {
+				connectToBroker();
+				return;
+			}
+
+			scheduleNextPing();
 			try {
 				mClient.checkPing(this, new IMqttActionListener() {
 					@Override
 					public void onFailure(IMqttToken token, Throwable e) {
-						scheduleNextPing();
 					}
 
 					@Override
 					public void onSuccess(IMqttToken token) {
-						scheduleNextPing();
 					}
 				});
 			} catch (MqttException e) {
-				notice(UNoticeService.this.NOTICE_INFO, "心跳检查失败");
+				noticeAction(ACTION_RECONNECT, "心跳检查失败");
 				logExt(e);
 			}
-		}
-
-		private ClientComms clientComms;
-
-		@Override
-		public void init(ClientComms clientComms) {
-			this.clientComms = clientComms;
-		}
-
-		@Override
-		public void schedule(long delayInMilliseconds) {
-			notice("DEBUG", "Ping");
-//			if (clientComms.isConnected()) {
-//				scheduleNextPing();
-//			}
-		}
-
-		@Override
-		public void start() {
-			notice("DEBUG", "start");
-			registerReceiver(pingSender, new IntentFilter(
-					UNoticeService.MQTT_PING_ACTION));
-		}
-
-		@Override
-		public void stop() {
-			notice("DEBUG", "stop");
-			if (clientComms.isConnected()) {
-				notice("DEBUG", "stop");
-			}
-			unregisterReceiver(pingSender);
 		}
 
 	}
