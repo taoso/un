@@ -105,8 +105,6 @@ public class UNoticeService extends Service implements MqttCallback {
 		networkConnectionMonitor = new NetworkConnectionMonitor();
 		brokerStatusHandler = new BrokerStatusHandler();
 
-		registerReceiver(networkConnectionMonitor, new IntentFilter(
-				ConnectivityManager.CONNECTIVITY_ACTION));
 		registerReceiver(pingSender, new IntentFilter(
 				UNoticeService.ACTION_PING));
 
@@ -121,7 +119,8 @@ public class UNoticeService extends Service implements MqttCallback {
 
 	public void handleStart() {
 		if (!isOnline()) {
-			notice(NOTICE_INFO, "您的设备没有连接互联网");
+			registerReceiver(networkConnectionMonitor, new IntentFilter(
+					ConnectivityManager.CONNECTIVITY_ACTION));
 			return;
 		}
 
@@ -271,11 +270,15 @@ public class UNoticeService extends Service implements MqttCallback {
 				UNoticeService.this.connectToBroker();
 			} else {
 				UNoticeService.this.notice(NOTICE_INFO, "因离线关闭客户端");
-				UNoticeService.this.mClient.disconnectForcibly();
+				try {
+					UNoticeService.this.mClient.disconnectForcibly();
+				} catch (MqttException e1) {
+					// TODO Auto-generated catch block
+					e1.printStackTrace();
+				}
+				registerReceiver(networkConnectionMonitor, new IntentFilter(
+						ConnectivityManager.CONNECTIVITY_ACTION));
 			}
-		} catch (MqttException e1) {
-			// TODO Auto-generated catch block
-			logExt(e1);
 		} finally {
 			wl.release();
 		}
