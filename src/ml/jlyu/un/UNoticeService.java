@@ -148,6 +148,7 @@ public class UNoticeService extends Service implements MqttCallback {
 
 				@Override
 				public void onSuccess(IMqttToken token) {
+					notice("CLEAR", "");
 					subscribeTopics();
 				}
 			});
@@ -240,8 +241,15 @@ public class UNoticeService extends Service implements MqttCallback {
 	private void notice(String title, String content, PendingIntent intent,
 			boolean isMessage) {
 		NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+
+		if (content == "") {
+			nm.cancel(appNoticeId);
+			return;
+		}
+
 		Uri soundUri = RingtoneManager
 				.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
+
 		NotificationCompat.Builder builder = new NotificationCompat.Builder(
 				this).setContentTitle(title)
 				.setSmallIcon(R.drawable.ic_launcher).setSound(soundUri)
