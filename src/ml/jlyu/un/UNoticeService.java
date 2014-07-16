@@ -103,18 +103,18 @@ public class UNoticeService extends Service implements MqttCallback {
 
 		pingSender = new PingSender();
 		networkConnectionMonitor = new NetworkConnectionMonitor();
+		brokerStatusHandler = new BrokerStatusHandler();
 
 		registerReceiver(networkConnectionMonitor, new IntentFilter(
 				ConnectivityManager.CONNECTIVITY_ACTION));
 		registerReceiver(pingSender, new IntentFilter(
 				UNoticeService.ACTION_PING));
 
-		registerReceiver(brokerStatusHandler, new IntentFilter(
-				UNoticeService.ACTION_RESTART));
-		registerReceiver(brokerStatusHandler, new IntentFilter(
-				UNoticeService.ACTION_RECONNECT));
-		registerReceiver(brokerStatusHandler, new IntentFilter(
-				UNoticeService.ACTION_RESUBSCRIBE));
+		IntentFilter brokerStatusIntentFilter = new IntentFilter();
+		brokerStatusIntentFilter.addAction(ACTION_RECONNECT);
+		brokerStatusIntentFilter.addAction(ACTION_RESTART);
+		brokerStatusIntentFilter.addAction(ACTION_RESUBSCRIBE);
+		registerReceiver(brokerStatusHandler, brokerStatusIntentFilter);
 
 		defineClient();
 	}
@@ -351,26 +351,21 @@ public class UNoticeService extends Service implements MqttCallback {
 		}
 	}
 
+	private void restart() {
+		try {
+			mClient.disconnectForcibly();
+		} catch (MqttException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		handleStart();
+	}
+
 	private class BrokerStatusHandler extends BroadcastReceiver {
 
 		@Override
 		public void onReceive(Context context, Intent intent) {
-			String action = intent.getAction();
-
-			if (action == UNoticeService.ACTION_RESTART) {
-				UNoticeService.this.handleStart();
-				return;
-			}
-
-			if (action == UNoticeService.ACTION_RECONNECT) {
-				UNoticeService.this.connectToBroker();
-				return;
-			}
-
-			if (action == UNoticeService.ACTION_RESUBSCRIBE) {
-				UNoticeService.this.subscribeTopics();
-				return;
-			}
+			UNoticeService.this.restart();
 		}
 	}
 }
