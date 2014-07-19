@@ -1,7 +1,5 @@
 package ml.jlyu.un;
 
-import java.io.PrintWriter;
-import java.io.StringWriter;
 import java.util.Calendar;
 import java.util.UUID;
 
@@ -34,47 +32,34 @@ import android.os.PowerManager.WakeLock;
 import android.os.SystemClock;
 import android.preference.PreferenceManager;
 import android.support.v4.app.NotificationCompat;
-import android.util.Log;
 
 public class UNoticeService extends Service implements MqttCallback {
 
-	/**
-	 * 重启动服务，包括重新初始化客户端，重新连接服务器，重新订阅主题
-	 */
+	// 重启动服务，包括重新初始化客户端，重新连接服务器，重新订阅主题
 	public final static String ACTION_RESTART = "ml.jlyu.un.action.restart";
-	/**
-	 * 重新连接服务器，包括重新连接服务器和重新订阅主题
-	 */
+	// 重新连接服务器，包括重新连接服务器和重新订阅主题
 	public final static String ACTION_RECONNECT = "ml.jlyu.un.action.reconnect";
-	/**
-	 * 重新订阅主题
-	 */
+	// 重新订阅主题
 	public final static String ACTION_RESUBSCRIBE = "ml.jlyu.un.action.resubscribe";
-	/**
-	 * MQTT心跳
-	 */
+	// MQTT心跳
 	public static final String ACTION_PING = "ml.jlyu.un.action.ping";
 
 	private final String NOTICE_ERROR = "Error";
 	private final String NOTICE_INFO = "Info";
 
-	/**
-	 * MQTT消息使用的id不能相同，可以显示多条通知
-	 */
+	// MQTT消息使用的id不能相同，可以显示多条通知
 	private int noticeId = 100;
 
-	/**
-	 * 系统消息公用一个通知id，只显示最新的通知
-	 */
+	// 系统消息公用一个通知id，只显示最新的通知
 	private int appNoticeId = 0;
 
 	private SharedPreferences preferences;
 
+	@SuppressWarnings("unused")
 	private BrokerStatusHandler brokerStatusHandler;
 
-	/**
-	 * 心跳包发送间隔，最少60秒
-	 */
+	// 心跳包发送间隔，最少10秒
+	// 系统会使用间隔时间减去5秒作为调度时间间隔
 	private int keepAliveInterval = 20;
 
 	private MqttAsyncClient mClient;
@@ -109,12 +94,6 @@ public class UNoticeService extends Service implements MqttCallback {
 
 		registerReceiver(pingSender, new IntentFilter(
 				UNoticeService.ACTION_PING));
-
-		IntentFilter brokerStatusIntentFilter = new IntentFilter();
-		brokerStatusIntentFilter.addAction(ACTION_RECONNECT);
-		brokerStatusIntentFilter.addAction(ACTION_RESTART);
-		brokerStatusIntentFilter.addAction(ACTION_RESUBSCRIBE);
-		registerReceiver(brokerStatusHandler, brokerStatusIntentFilter);
 	}
 
 	public synchronized void handleStart() {
@@ -159,7 +138,7 @@ public class UNoticeService extends Service implements MqttCallback {
 		} catch (Exception e) {
 			// TODO 处理连接异常
 			// 此处异常为正在连接、已经连接、正在断开连接、已经断开连接四种
-			logExt(e);
+			e.printStackTrace();
 		}
 	}
 
@@ -174,15 +153,8 @@ public class UNoticeService extends Service implements MqttCallback {
 			// TODO 可能存在客户端未连接的情况，查明原因
 			UNoticeService.this.noticeAction(UNoticeService.ACTION_RESUBSCRIBE,
 					"无法订阅主题（点击重试）");
-			logExt(e);
+			e.printStackTrace();
 		}
-	}
-
-	private void logExt(Throwable e) {
-		StringWriter sw = new StringWriter();
-		PrintWriter pw = new PrintWriter(sw);
-		e.printStackTrace(pw);
-		Log.d("UNDEBUG", sw.toString());
 	}
 
 	private boolean defineClient() {
@@ -201,7 +173,7 @@ public class UNoticeService extends Service implements MqttCallback {
 			return true;
 		} catch (MqttException e) {
 			noticeAction(ACTION_RESTART, "初始化客户端失败（点击重试）");
-			logExt(e);
+			e.printStackTrace();
 		}
 
 		return false;
@@ -229,18 +201,42 @@ public class UNoticeService extends Service implements MqttCallback {
 			mClient.close();
 		} catch (MqttException e) {
 			// TODO Auto-generated catch block
-			logExt(e);
+			e.printStackTrace();
 		}
 	}
 
+	/**
+	 * 发送普通系统通知。内容为空时可以清空动作通知。
+	 *
+	 * @param title
+	 *            通知标题
+	 * @param content
+	 *            通知内容
+	 */
 	private void notice(String title, String content) {
 		notice(title, content, null, false);
 	}
 
+	/**
+	 * 将收到的MQTT消息发送到系统通知栏
+	 *
+	 * @param topic
+	 *            消息主题
+	 * @param content
+	 *            消息内容
+	 */
 	private void noticeMessage(String topic, String content) {
 		notice(topic, content, null, true);
 	}
 
+	/**
+	 * 发送“动作”通知。用户点击通知后广播相应动作。
+	 *
+	 * @param action
+	 *            动作标识
+	 * @param description
+	 *            动作描述，通知内容
+	 */
 	private void noticeAction(String action, String description) {
 		Intent intent = new Intent(UNoticeService.ACTION_RECONNECT);
 		PendingIntent pIntent = PendingIntent.getBroadcast(this, 0, intent,
@@ -248,6 +244,18 @@ public class UNoticeService extends Service implements MqttCallback {
 		notice(NOTICE_ERROR, description, pIntent, false);
 	}
 
+	/**
+	 * 发送动作通知底层方法
+	 *
+	 * @param title
+	 *            通知标题
+	 * @param content
+	 *            通知内容，内容为空时清空通知
+	 * @param intent
+	 *            点击后要广播的动作
+	 * @param isMessage
+	 *            是否为普通消息，如果是则分开显示；否则，替换之前的通知
+	 */
 	private void notice(String title, String content, PendingIntent intent,
 			boolean isMessage) {
 		NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
@@ -351,7 +359,6 @@ public class UNoticeService extends Service implements MqttCallback {
 
 		@Override
 		public void stop() {
-			noticeMessage("DEBUG", "stop ping");
 		}
 
 	}
@@ -395,6 +402,15 @@ public class UNoticeService extends Service implements MqttCallback {
 	}
 
 	private class BrokerStatusHandler extends BroadcastReceiver {
+
+		public BrokerStatusHandler() {
+			IntentFilter brokerStatusIntentFilter = new IntentFilter();
+			brokerStatusIntentFilter.addAction(ACTION_RECONNECT);
+			brokerStatusIntentFilter.addAction(ACTION_RESTART);
+			brokerStatusIntentFilter.addAction(ACTION_RESUBSCRIBE);
+
+			registerReceiver(this, brokerStatusIntentFilter);
+		}
 
 		@Override
 		public void onReceive(Context context, Intent intent) {
