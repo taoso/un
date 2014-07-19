@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <string-array name="ping_interval_entries">
+        <item> 1分钟</item>
+        <item>10分钟</item>
+        <item>30分钟</item>
+        <item> 1小时</item>
+    </string-array>
+
+    <string-array name="ping_interval_entry_values">
+        <item>60</item>
+        <item>600</item>
+        <item>1800</item>
+        <item>3600</item>
+    </string-array>
+
+</resources>

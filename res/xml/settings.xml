@@ -19,4 +19,12 @@
         android:summary="@string/topic_summary"
         android:title="@string/topic" />
 
+    <ListPreference
+        android:defaultValue="1800"
+        android:entries="@array/ping_interval_entries"
+        android:entryValues="@array/ping_interval_entry_values"
+        android:key="ping_interval"
+        android:summary="@string/ping_interval_summary"
+        android:title="@string/ping_interval" />
+
 </PreferenceScreen>

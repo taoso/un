@@ -58,10 +58,6 @@ public class UNoticeService extends Service implements MqttCallback {
 	@SuppressWarnings("unused")
 	private BrokerStatusHandler brokerStatusHandler;
 
-	// 心跳包发送间隔，最少10秒
-	// 系统会使用间隔时间减去5秒作为调度时间间隔
-	private int keepAliveInterval = 20;
-
 	private MqttAsyncClient mClient;
 	private PingSender pingSender;
 	private NetworkConnectionMonitor networkConnectionMonitor;
@@ -118,7 +114,9 @@ public class UNoticeService extends Service implements MqttCallback {
 		MqttConnectOptions mco = new MqttConnectOptions();
 
 		mco.setCleanSession(false);
-		mco.setKeepAliveInterval(keepAliveInterval);
+		String pingInterval = this.preferences.getString("ping_interval", "60");
+
+		mco.setKeepAliveInterval(Integer.parseInt(pingInterval));
 
 		try {
 			mClient.connect(mco, null, new IMqttActionListener() {
