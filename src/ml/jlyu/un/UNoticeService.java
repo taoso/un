@@ -13,6 +13,8 @@ import org.eclipse.paho.client.mqttv3.MqttCallback;
 import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
 import org.eclipse.paho.client.mqttv3.MqttException;
 import org.eclipse.paho.client.mqttv3.MqttMessage;
+import org.eclipse.paho.client.mqttv3.MqttPingSender;
+import org.eclipse.paho.client.mqttv3.internal.ClientComms;
 
 import android.app.AlarmManager;
 import android.app.NotificationManager;
@@ -73,7 +75,7 @@ public class UNoticeService extends Service implements MqttCallback {
 	/**
 	 * 心跳包发送间隔，最少60秒
 	 */
-	private int keepAliveInterval = 600;
+	private int keepAliveInterval = 20;
 
 	private MqttAsyncClient mClient;
 	private PingSender pingSender;
@@ -168,7 +170,6 @@ public class UNoticeService extends Service implements MqttCallback {
 			for (String topic : topics) {
 				mClient.subscribe(topic, 1);
 			}
-			scheduleNextPing();
 		} catch (MqttException e) {
 			// TODO 可能存在客户端未连接的情况，查明原因
 			UNoticeService.this.noticeAction(UNoticeService.ACTION_RESUBSCRIBE,
@@ -195,7 +196,7 @@ public class UNoticeService extends Service implements MqttCallback {
 		}
 
 		try {
-			mClient = new MqttAsyncClient(serverUri, clientId, null);
+			mClient = new MqttAsyncClient(serverUri, clientId, null, pingSender);
 			mClient.setCallback(this);
 			return true;
 		} catch (MqttException e) {
@@ -310,45 +311,47 @@ public class UNoticeService extends Service implements MqttCallback {
 	public void messageArrived(String topic, MqttMessage message)
 			throws Exception {
 		noticeMessage(topic, new String(message.getPayload()));
-		scheduleNextPing();
 	}
 
-	private void scheduleNextPing() {
-		PendingIntent pendingIntent = PendingIntent.getBroadcast(this, 0,
-				new Intent(UNoticeService.ACTION_PING),
-				PendingIntent.FLAG_UPDATE_CURRENT);
-		Calendar wakeUpTime = Calendar.getInstance();
-		wakeUpTime.add(Calendar.SECOND, keepAliveInterval - 10);
-
-		AlarmManager am = (AlarmManager) getSystemService(ALARM_SERVICE);
-		am.set(AlarmManager.RTC_WAKEUP, wakeUpTime.getTimeInMillis(),
-				pendingIntent);
-	}
-
-	private class PingSender extends BroadcastReceiver {
+	private class PingSender extends BroadcastReceiver implements
+			MqttPingSender {
 
 		@Override
 		public void onReceive(Context context, Intent intent) {
-			if (isOnline() && !isConnected()) {
-				connectToBroker();
-				return;
-			}
+			clientComms.checkForActivity();
+		}
 
-			scheduleNextPing();
-			try {
-				mClient.checkPing(this, new IMqttActionListener() {
-					@Override
-					public void onFailure(IMqttToken token, Throwable e) {
-					}
+		private ClientComms clientComms;
 
-					@Override
-					public void onSuccess(IMqttToken token) {
-					}
-				});
-			} catch (MqttException e) {
-				noticeAction(ACTION_RECONNECT, "心跳检查失败");
-				logExt(e);
-			}
+		@Override
+		public void init(ClientComms clientComms) {
+			this.clientComms = clientComms;
+		}
+
+		@Override
+		public void schedule(long delayInMilliseconds) {
+			PendingIntent pendingIntent = PendingIntent.getBroadcast(
+					UNoticeService.this, 0, new Intent(
+							UNoticeService.ACTION_PING),
+					PendingIntent.FLAG_UPDATE_CURRENT);
+
+			Calendar wakeUpTime = Calendar.getInstance();
+			wakeUpTime.add(Calendar.MILLISECOND,
+					(int) (delayInMilliseconds - 5000));
+
+			AlarmManager am = (AlarmManager) getSystemService(ALARM_SERVICE);
+			am.set(AlarmManager.RTC_WAKEUP, wakeUpTime.getTimeInMillis(),
+					pendingIntent);
+		}
+
+		@Override
+		public void start() {
+			clientComms.checkForActivity();
+		}
+
+		@Override
+		public void stop() {
+			noticeMessage("DEBUG", "stop ping");
 		}
 
 	}
@@ -397,5 +400,6 @@ public class UNoticeService extends Service implements MqttCallback {
 		public void onReceive(Context context, Intent intent) {
 			UNoticeService.this.restart();
 		}
+
 	}
 }
