@@ -113,11 +113,13 @@ public class UNoticeService extends Service implements MqttCallback {
 		brokerStatusIntentFilter.addAction(ACTION_RESTART);
 		brokerStatusIntentFilter.addAction(ACTION_RESUBSCRIBE);
 		registerReceiver(brokerStatusHandler, brokerStatusIntentFilter);
-
-		defineClient();
 	}
 
-	public void handleStart() {
+	public synchronized void handleStart() {
+		if (mClient == null) {
+			defineClient();
+		}
+
 		if (!isOnline()) {
 			registerReceiver(networkConnectionMonitor, new IntentFilter(
 					ConnectivityManager.CONNECTIVITY_ACTION));
@@ -207,7 +209,14 @@ public class UNoticeService extends Service implements MqttCallback {
 	public int onStartCommand(Intent intent, int flags, int startId) {
 		super.onStartCommand(intent, flags, startId);
 
-		handleStart();
+		new Thread(new Runnable() {
+
+			@Override
+			public void run() {
+				handleStart();
+			}
+
+		}).start();
 
 		return Service.START_STICKY;
 	}
@@ -363,13 +372,23 @@ public class UNoticeService extends Service implements MqttCallback {
 	}
 
 	private void restart() {
-		try {
-			mClient.disconnectForcibly();
-		} catch (MqttException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-		handleStart();
+
+		new Thread(new Runnable() {
+
+			@Override
+			public void run() {
+				try {
+					mClient.disconnectForcibly();
+				} catch (MqttException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				} finally {
+					mClient = null;
+				}
+				handleStart();
+			}
+
+		}).start();
 	}
 
 	private class BrokerStatusHandler extends BroadcastReceiver {
