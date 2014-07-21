@@ -274,6 +274,7 @@ public class UNoticeService extends Service implements MqttCallback {
 		if (intent != null) {
 			builder.setContentIntent(intent);
 			builder.setAutoCancel(true);
+			builder.setOngoing(true);
 		}
 
 		if (isMessage) {
